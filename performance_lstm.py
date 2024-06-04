@@ -26,10 +26,16 @@ test_dataset = MovieReviewDataset(test_data, test_labels, tokenizer, vocab)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn)
 
 # Initialize the model (make sure the hyperparameters match the saved model)
-embedding_dim = 75
-hidden_dim = 150
-output_dim = 1
-num_layers = 2
+if model_name == 'lstm2':
+    embedding_dim = 75
+    hidden_dim = 150
+    output_dim = 1
+    num_layers = 2
+if model_name == 'lstm3':
+    embedding_dim = 100
+    hidden_dim = 200
+    output_dim = 1
+    num_layers = 1
 
 model = LSTMModel(len(vocab), embedding_dim, hidden_dim, output_dim, num_layers).to(device)
 
@@ -88,3 +94,16 @@ conf_matrix_df = pd.DataFrame(conf_matrix,
                       index = [ 'actual negative reviews',  'actual positive reviews'], 
                       columns = [ 'predicted negative reviews',  'predicted positive reviews'] )
 print(conf_matrix_df)
+
+tp = conf_matrix[1, 1]  # True Positives
+fp = conf_matrix[0, 1]  # False Positives
+fn = conf_matrix[1, 0]  # False Negatives
+tn = conf_matrix[0, 0]  # True Negatives
+
+precision = tp / (tp + fp)
+recall = tp / (tp + fn)
+f1_score = (2 * precision * recall) / (precision + recall)
+
+print('Precision: ', precision)
+print('Recall: ', recall)
+print('F1 score:', f1_score)

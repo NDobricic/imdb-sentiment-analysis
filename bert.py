@@ -112,132 +112,133 @@ def collate_fn(batch):
     labels = torch.tensor(labels)
     return input_ids, attention_masks, labels
 
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+if __name__ == 'main':
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 
-train_dataset = MovieReviewDataset(train_data, train_labels, tokenizer)
-test_dataset = MovieReviewDataset(test_data, test_labels, tokenizer)
+    train_dataset = MovieReviewDataset(train_data, train_labels, tokenizer)
+    test_dataset = MovieReviewDataset(test_data, test_labels, tokenizer)
 
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn)
-
-
-# In[ ]:
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn)
 
 
-# Initialize the model
-model = DistilBertModelForRegression(1).to(device)
+    # In[ ]:
 
-# Unfreeze the DistilBERT layers
-for param in model.distilbert.parameters():
-    param.requires_grad = True
 
-# Define the loss function and optimizer
-criterion = nn.MSELoss()
-optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+    # Initialize the model
+    model = DistilBertModelForRegression(1).to(device)
 
-# Set up directories
-print("Creating necessary directories...")
-model_name = 'bert1'
-plot_dir = os.path.join(model_name, 'plots')
-checkpoint_dir = os.path.join(model_name, 'checkpoints')
-checkpoint_path = os.path.join(checkpoint_dir, 'latest.pt')
-info_dir = os.path.join(model_name, 'info')
-os.makedirs(plot_dir, exist_ok=True)
-os.makedirs(checkpoint_dir, exist_ok=True)
-os.makedirs(info_dir, exist_ok=True)
-loss_plot_path = os.path.join(plot_dir, 'training_validation_loss.png')
-checkpoint_increment = 20
+    # Unfreeze the DistilBERT layers
+    for param in model.distilbert.parameters():
+        param.requires_grad = True
 
-# Load saved state dictionaries if they exist
-if os.path.exists(checkpoint_path):
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = learning_rate
-    start_epoch = checkpoint['epoch'] + 1
-    train_losses = checkpoint['train_losses']
-    test_losses = checkpoint['test_losses']
-    print(f"Loaded checkpoint from epoch {start_epoch}")
-else:
-    start_epoch = 0
-    file_path = os.path.join(info_dir, 'architecture.txt')
-    model_info = str(model)
-    with open(file_path, 'w') as file:
-        file.write(model_info)
-    print(f"Model architecture saved to {file_path}")
-    train_losses = []
-    test_losses = []
-    
-print('Starting the training...')
-try:
-    epoch = start_epoch
-    while True:
-        model.train()
-        train_loss = 0.0
+    # Define the loss function and optimizer
+    criterion = nn.MSELoss()
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
 
-        for input_ids, attention_masks, targets in train_loader:
-            input_ids, attention_masks, targets = input_ids.to(device), attention_masks.to(device), targets.to(device).float()
+    # Set up directories
+    print("Creating necessary directories...")
+    model_name = 'bert1'
+    plot_dir = os.path.join(model_name, 'plots')
+    checkpoint_dir = os.path.join(model_name, 'checkpoints')
+    checkpoint_path = os.path.join(checkpoint_dir, 'latest.pt')
+    info_dir = os.path.join(model_name, 'info')
+    os.makedirs(plot_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(info_dir, exist_ok=True)
+    loss_plot_path = os.path.join(plot_dir, 'training_validation_loss.png')
+    checkpoint_increment = 20
 
-            optimizer.zero_grad()
-            outputs = model(input_ids, attention_masks).squeeze()
-            loss = criterion(outputs, targets)
-            loss.backward()
-            optimizer.step()
+    # Load saved state dictionaries if they exist
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = learning_rate
+        start_epoch = checkpoint['epoch'] + 1
+        train_losses = checkpoint['train_losses']
+        test_losses = checkpoint['test_losses']
+        print(f"Loaded checkpoint from epoch {start_epoch}")
+    else:
+        start_epoch = 0
+        file_path = os.path.join(info_dir, 'architecture.txt')
+        model_info = str(model)
+        with open(file_path, 'w') as file:
+            file.write(model_info)
+        print(f"Model architecture saved to {file_path}")
+        train_losses = []
+        test_losses = []
+        
+    print('Starting the training...')
+    try:
+        epoch = start_epoch
+        while True:
+            model.train()
+            train_loss = 0.0
 
-            train_loss += loss.item() * input_ids.size(0)
-
-        train_loss /= len(train_dataset)
-        train_losses.append(train_loss)
-
-        model.eval()
-        test_loss = 0.0
-
-        with torch.no_grad():
-            for input_ids, attention_masks, targets in test_loader:
+            for input_ids, attention_masks, targets in train_loader:
                 input_ids, attention_masks, targets = input_ids.to(device), attention_masks.to(device), targets.to(device).float()
+
+                optimizer.zero_grad()
                 outputs = model(input_ids, attention_masks).squeeze()
                 loss = criterion(outputs, targets)
-                test_loss += loss.item() * input_ids.size(0)
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item() * input_ids.size(0)
+
+            train_loss /= len(train_dataset)
+            train_losses.append(train_loss)
+
+            model.eval()
+            test_loss = 0.0
+
+            with torch.no_grad():
+                for input_ids, attention_masks, targets in test_loader:
+                    input_ids, attention_masks, targets = input_ids.to(device), attention_masks.to(device), targets.to(device).float()
+                    outputs = model(input_ids, attention_masks).squeeze()
+                    loss = criterion(outputs, targets)
+                    test_loss += loss.item() * input_ids.size(0)
 
 
-        test_loss /= len(test_dataset)
-        test_losses.append(test_loss)
+            test_loss /= len(test_dataset)
+            test_losses.append(test_loss)
 
-        print(f"Epoch [{epoch+1}], Train Loss: {train_loss:.10f}, Test Loss: {test_loss:.10f}")
+            print(f"Epoch [{epoch+1}], Train Loss: {train_loss:.10f}, Test Loss: {test_loss:.10f}")
 
-        # Save checkpoint
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'train_losses': train_losses,
-            'test_losses': test_losses
-        }, checkpoint_path)
-        
-        if (epoch + 1) % checkpoint_increment == 0:
+            # Save checkpoint
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'train_losses': train_losses,
                 'test_losses': test_losses
-            }, os.path.join(checkpoint_dir, f'checkpoint{epoch + 1}.pt'))
+            }, checkpoint_path)
+            
+            if (epoch + 1) % checkpoint_increment == 0:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'train_losses': train_losses,
+                    'test_losses': test_losses
+                }, os.path.join(checkpoint_dir, f'checkpoint{epoch + 1}.pt'))
 
-        # Plotting and saving the figure
-        plt.figure(figsize=(10, 5))
-        plt.plot(range(1, len(train_losses) + 1), train_losses, label='Training Loss')
-        plt.plot(range(1, len(test_losses) + 1), test_losses, label='Validation Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title('Training and Validation Loss')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(loss_plot_path)
-        plt.close()
+            # Plotting and saving the figure
+            plt.figure(figsize=(10, 5))
+            plt.plot(range(1, len(train_losses) + 1), train_losses, label='Training Loss')
+            plt.plot(range(1, len(test_losses) + 1), test_losses, label='Validation Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.title('Training and Validation Loss')
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(loss_plot_path)
+            plt.close()
 
-        epoch += 1
+            epoch += 1
 
-except KeyboardInterrupt:
-    print('Training has been manually interrupted.')
+    except KeyboardInterrupt:
+        print('Training has been manually interrupted.')
